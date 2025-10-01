@@ -1,163 +1,101 @@
-# Backend API — Users
+# Backend API Documentation
 
-This document describes the user-facing authentication endpoints implemented in the Backend service. It covers request/response shapes, validation rules, and example usage for the following endpoints:
+## `/users/register` Endpoint
 
-- POST /users/register — create a new user
-- POST /users/login — authenticate an existing user
+### Description
 
-Base notes
+Registers a new user by creating a user account with the provided information.
 
-- Base path: the router for these endpoints is mounted under `/users` in the application. So the full paths are `/users/register` and `/users/login`.
-- Content type: application/json for request bodies.
+### HTTP Method
 
-## POST /users/register
+`POST`
 
-Purpose
-: Create a new user account. The endpoint validates input, hashes the password, stores the user, and returns a JSON Web Token (JWT) for subsequent authenticated requests.
+### Request Body
 
-Success
+The request body should be in JSON format and include the following fields:
 
-- Status: 201 Created
-- Response body: the created user (public fields only) and a JWT token.
+- `fullname` (object):
+  - `firstname` (string, required): User's first name (minimum 3 characters).
+  - `lastname` (string, optional): User's last name (minimum 3 characters).
+- `email` (string, required): User's email address (must be a valid email).
+- `password` (string, required): User's password (minimum 6 characters).
 
-Request
+### Example Response
 
-- Headers:
-  - Content-Type: application/json
-- JSON body schema (example):
+- `user` (object):
+  - `fullname` (object).
+    - `firstname` (string): User's first name (minimum 3 characters).
+    - `lastname` (string): User's last name (minimum 3 characters).   
+  - `email` (string): User's email address (must be a valid email).
+  - `password` (string): User's password (minimum 6 characters).
+- `token` (String): JWT Token
 
-```json
-{
-  "fullname": {
-    "firstname": "string (min 3 chars)",
-    "lastname": "string (optional, min 3 chars)"
-  },
-  "email": "string (valid email)",
-  "password": "string (min 6 chars)"
-}
-```
+## `/users/login` Endpoint
 
-Validation rules (applied server-side)
+### Description
 
-- `fullname.firstname`: required, minimum 3 characters
-- `fullname.lastname`: optional, if present minimum 3 characters
-- `email`: required, must be a valid email format
-- `password`: required, minimum 6 characters
+Authenticates a user using their email and password, returning a JWT token upon successful login.
 
-Success response example (201):
+### HTTP Method
 
-```json
-{
-  "user": {
-    "_id": "<user_id>",
-    "fullname": {
-      "firstname": "Jane",
-      "lastname": "Doe"
-    },
-    "email": "jane.doe@example.com"
-  },
-  "token": "<jwt_token_here>"
-}
-```
+`POST`
 
-Errors
+### Endpoint
 
-- 400 Bad Request: validation failed. Response contains an `errors` array from `express-validator` with `msg`, `param` and `location`.
-- 409 Conflict: duplicate email (this is returned by MongoDB when `email` uniqueness is violated — your app may map this to 400 or 409 depending on error handling).
-- 500 Internal Server Error: unexpected failure.
+`/users/login`
 
-Error example (validation, 400):
+### Request Body
 
-```json
-{
-  "errors": [
-    { "msg": "Invalid email format", "param": "email", "location": "body" },
-    {
-      "msg": "Password must be at least 6 characters long",
-      "param": "password",
-      "location": "body"
-    }
-  ]
-}
-```
+The request body should be in JSON format and include the following fields:
 
-Notes and tips
+- `email` (string, required): User's email address (must be a valid email).
+- `password` (string, required): User's password (minimum 6 characters).
 
-- The endpoint returns the user object but the password is never returned.
-- The server hashes passwords with bcrypt before saving (see `models/user.model.js`).
+### Example Response
 
----
+- `user` (object):
+  - `fullname` (object).
+    - `firstname` (string): User's first name (minimum 3 characters).
+    - `lastname` (string): User's last name (minimum 3 characters).   
+  - `email` (string): User's email address (must be a valid email).
+  - `password` (string): User's password (minimum 6 characters).
+- `token` (String): JWT Token
 
-## POST /users/login
+## `/users/profile` Endpoint
 
-Purpose
-: Authenticate a user with email and password. Successful authentication returns the user (public fields) and a JWT token.
+### Description
 
-Success
+Retrieves the profile information of the currently authenticated user.
 
-- Status: 200 OK
-- Response body: the user (public fields only) and a JWT token.
+### HTTP Method
 
-Request
+`GET`
 
-- Headers:
-  - Content-Type: application/json
-- JSON body (example):
+### Authentication
 
-```json
-{
-  "email": "jane.doe@example.com",
-  "password": "password123"
-}
-```
+Requires a valid JWT token in the Authorization header:
+`Authorization: Bearer <token>`
 
-Validation rules
+### Example Response
 
-- `email`: required, must be valid email format
-- `password`: required, minimum 6 characters
+- `user` (object):
+  - `fullname` (object).
+    - `firstname` (string): User's first name (minimum 3 characters).
+    - `lastname` (string): User's last name (minimum 3 characters).   
+  - `email` (string): User's email address (must be a valid email).
 
-Success response example (200):
 
-```json
-{
-  "user": {
-    "_id": "<user_id>",
-    "fullname": { "firstname": "Jane", "lastname": "Doe" },
-    "email": "jane.doe@example.com"
-  },
-  "token": "<jwt_token_here>"
-}
-```
 
-Errors
+## `/users/logout` Endpoint
 
-- 400 Bad Request: validation errors (see `express-validator` style `errors` array).
-- 401 Unauthorized: invalid credentials (wrong email or password).
-- 500 Internal Server Error: unexpected failure.
+### Description
 
-Error example (invalid credentials, 401):
+Logout the current user and blacklist the token provided in cookie or headers
 
-```json
-{ "message": "Invalid email or password" }
-```
+### HTTP Method
 
-Security and usage
+`GET`
 
-- Use the returned JWT in the `Authorization` header for protected routes: `Authorization: Bearer <token>`.
-- Keep `JWT_SECRET` (used to sign tokens) secure and never commit it to source control. Configure it via environment variables in production.
+### Authentication
 
-Implementation notes
-
-- Passwords are hashed using bcrypt (see `models/user.model.js`).
-- The code performs input validation using `express-validator` in `routes/user.routes.js`.
-- On registration the app uses `user.services.createUser` to persist the new user and then calls `generateAuthToken()` on the model instance to create a token.
-
-If you want, I can also:
-
-- Add curl examples for quick manual testing
-- Add an OpenAPI (Swagger) specification file for these endpoints
-- Add a short troubleshooting section that lists common errors and how to reproduce them locally
-
----
-
-Last updated: 2025-09-30
+Requires a valid JWT token in the Authorization header or cookie:
